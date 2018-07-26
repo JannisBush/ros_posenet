@@ -1,0 +1,15 @@
+<launch>
+    <!-- Launch posenet with all params -->
+    <node pkg="ros_posenet" type="posenet.js" name="posenet" output="screen">
+        <param name="topic" value="/camera/image_raw" />
+        <param name="gpu" value="false" />
+        <param name="poses_topic" value="/poses" />
+        <param name="multiplier" value="0.5" />
+        <param name="image_scale_factor" value="0.5" />
+        <param name="flip_horizontal" value="false" />
+        <param name="output_stride" value="16" />
+        <param name="max_pose" value="5" />
+        <param name="score_threshold" value="0.5" />
+        <param name="nms_radius" value="20" />
+    </node>
+</launch>

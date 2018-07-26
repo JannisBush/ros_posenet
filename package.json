@@ -1,0 +1,27 @@
+{
+  "name": "ros_posenet",
+  "version": "0.0.1",
+  "description": "ROS wrapper for PoseNet",
+  "keywords": [
+    "ros",
+    "posenet"
+  ],
+  "scripts": {
+    "posenet": "node scripts/posenet.js"
+  },
+  "author": "Vytas Krisciunas",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/hansonrobotics/ros_posenet"
+  },
+  "dependencies": {
+    "rosnodejs": "2.x",
+    "@tensorflow/tfjs": "^0.12.0",
+    "@tensorflow/tfjs-node": "~0.1.9",
+    "@tensorflow/tfjs-node-gpu": "~0.1.9",
+    "@tensorflow-models/posenet": "^0.2.0",
+    "xhr2": "~0.1.4",
+    "json-stringify": "1.x"
+  }
+}
