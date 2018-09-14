@@ -21,6 +21,7 @@
     "@tensorflow/tfjs-node": "~0.1.9",
     "@tensorflow/tfjs-node-gpu": "~0.1.9",
     "@tensorflow-models/posenet": "^0.2.0",
+    "@tensorflow-models/mobilenet": "^0.2.2",
     "xhr2": "~0.1.4",
     "json-stringify": "1.x"
   }

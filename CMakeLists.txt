@@ -6,6 +6,8 @@ project(ros_posenet)
 ## is used, also find other catkin packages
 #find_package(catkin REQUIRED message_generation)
 find_package(catkin REQUIRED COMPONENTS
+  geometry_msgs
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -47,6 +49,9 @@ find_package(catkin REQUIRED COMPONENTS
 #   Message1.msg
 #   Message2.msg
 # )
+
+add_message_files(FILES Keypoint.msg Pose.msg Poses.msg)
+generate_messages(DEPENDENCIES geometry_msgs)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -99,6 +104,7 @@ catkin_package(
 #  LIBRARIES
 #  CATKIN_DEPENDS other_catkin_pkg
 #  DEPENDS system_lib
+   CATKIN_DEPENDS message_runtime geometry_msgs
 )
 
 ###########
