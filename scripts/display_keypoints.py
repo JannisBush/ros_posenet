@@ -35,10 +35,9 @@ class image_converter:
       except CvBridgeError as e:
         print(e)
 
-
-      if len(pose_msg.poses) > 0:
+      for i in range(len(pose_msg.poses)):
         keypoint_dict = {}
-        for keypoint in pose_msg.poses[0].keypoints:
+        for keypoint in pose_msg.poses[i].keypoints:
           if keypoint.score > self.min_part_conf:
             keypoint_dict[keypoint.part] = (int(keypoint.position.x), int(keypoint.position.y))
             # draw point 
