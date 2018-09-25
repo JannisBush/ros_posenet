@@ -79,7 +79,7 @@ async function run() {
                 // data.data = swapChannels(data.data);
                 data.encoding = 'rgb8';
             }
-            // Currently works wonly with rgb8 data
+            // Currently works only with rgb8 data
             assert(data.encoding == 'rgb8');
             buffer = data.data;
             newBuffer = true;

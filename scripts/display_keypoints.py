@@ -20,7 +20,7 @@ class image_converter:
     self.min_part_conf = 0.1
 
     self.bridge = CvBridge()
-    self.image_sub = rospy.Subscriber("/miro/rob01/platform/caml", Image, self.callback_img)
+    self.image_sub = rospy.Subscriber("/camera/raw", Image, self.callback_img)
 
     self.keypoint_sub = rospy.Subscriber("/poses", Poses, self.callback_poses)
 
