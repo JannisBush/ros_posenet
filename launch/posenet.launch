@@ -1,10 +1,10 @@
 <launch>
 
-    <node pkg="image_transport" type="republish" name="republisher" args="compressed in:=/miro/rob01/platform/caml raw out:=/camera/raw" required="True" />
+    <node pkg="image_transport" type="republish" name="republisher" args="compressed in:=/naoqi_driver/camera/front/image_raw raw out:=/camera/raw" required="True" />
     <!-- Launch posenet with all params -->
     <node pkg="ros_posenet" type="posenet.js" name="posenet" output="screen">
         <param name="topic" value="/camera/raw" />
-        <param name="multiPerson" value="False" />
+        <param name="multiPerson" value="True" />
         <param name="gpu" value="false" />
         <param name="poses_topic" value="/poses" />
         <param name="multiplier" value="1.01" />
