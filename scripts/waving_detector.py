@@ -21,11 +21,11 @@ class publish_direction:
 		self.image_sub = rospy.Subscriber("/camera/raw", Image, self.callback_img)
 		self.keypoint_sub = rospy.Subscriber("/poses", Poses, self.callback_poses)
 		self.waving_location_sub = rospy.Subscriber("waving_location", String, self.callback_waving)
-		self.waving_location_pub = rospy.Publisher("waving_location", String)
-		self.joint_angles_pub = rospy.Publisher("joint_angles",JointAnglesWithSpeed)
+		self.waving_location_pub = rospy.Publisher("waving_location", String, queue_size=10)
+		self.joint_angles_pub = rospy.Publisher("joint_angles",JointAnglesWithSpeed, queue_size=10)
 		self.joint_states_sub = rospy.Subscriber("joint_states",JointState, self.callback_joint_state)
 		self.search_guest_sub = rospy.Subscriber("search_guest", Bool, self.callback_search)
-		self.go_to_pub = rospy.Publisher("position_command", PositionCommand)
+		self.go_to_pub = rospy.Publisher("position_command", PositionCommand, queue_size=10)
 		self.counter = 0
 		self.counter2 = 0
 		self.search= True
@@ -67,15 +67,15 @@ class publish_direction:
 				self.counter2 = self.counter2 +1
 			if self.counter2 > 10:
 					self.counter2 = 0
-					#print("turning" + str(self.position))
+					
 
 					#this is supposed to tell you that no waving person has been found and that you might want to turn Pepper into some other direction to find something
 					#the numbers at the end of the sent String are supposed to tell you the current angle of Peppers head, not the direction he's supposed to turn to
 					#it uses a type of costum message that hasn't been defined yet
 					msg = PositionCommand()
 					msg.command= "go"  #save?
-					msg.location= "turning " + str(position)
-					self.go_to_pub(msg)
+					msg.location= "turning " + str(self.position)
+					self.go_to_pub.publish(msg)
 			
 		
 		else:
@@ -88,14 +88,16 @@ class publish_direction:
 		(when the waving is not in the center of view)
 		or if he publishes the currect head
 		'''
-		angles=[8,9,10,11]
 		a,b=location.data.split(" ")
 		self.counter2 = 0
 		locationlist=[int(a),int(b)]
 		if locationlist[0] < 0 and locationlist[1] < 0:
+			newpos= abs(locationlist[0]-locationlist[1])
+			if newpos > 10:
+				newpos = 10
                         msg = JointAnglesWithSpeed()
                         msg.joint_names=["HeadYaw"]
-			msg.joint_angles=[np.random.choice(angles)*almath.TO_RAD]
+			msg.joint_angles=[newpos*almath.TO_RAD]
 			msg.speed=0.05
 			msg.relative=1
 			self.joint_angles_pub.publish(msg)
@@ -104,28 +106,28 @@ class publish_direction:
 
 
 		elif locationlist[0] > 0 and locationlist[1] > 0:
+			newpos= abs(locationlist[0]-locationlist[1])
+			if newpos > 10:
+				newpos = 10
 			msg = JointAnglesWithSpeed()
                         msg.joint_names=["HeadYaw"]
-			msg.joint_angles=[-np.random.choice(angles)*almath.TO_RAD]
+			msg.joint_angles=[-newpos*almath.TO_RAD]
 			msg.speed=0.05
 			msg.relative=1
 			self.joint_angles_pub.publish(msg)
 
 		else:
-			print(self.counter2)
-			print(self.counter2)
 			self.counter = self.counter +1
 			
-			print("waving" + str(self.position))
-
+			
 			#this is supposed to tell you that a waving person has been found in the direction he's looking into
 			#the numbers at the end of the sent String are supposed to tell you the current angle of Peppers head, not the direction he's supposed to turn to
 			#it uses a type of costum message that hasn't been defined yet
 			
 			msg = PositionCommand()
 			msg.command= "go"
-			msg.location= "waving " + str(position)
-			self.go_to_pub(msg)
+			msg.location= "waving " + str(self.position)
+			self.go_to_pub.publish(msg)
 			
 
 
