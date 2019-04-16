@@ -135,7 +135,7 @@ class publish_direction:
 
 def main(args):
   ic = publish_direction()
-  rospy.init_node('publish_direction', anonymous=True)
+  rospy.init_node('publish_direction', anonymous=False)
   try:
     rospy.spin()
   except KeyboardInterrupt:
