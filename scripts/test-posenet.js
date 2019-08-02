@@ -30,7 +30,8 @@ async function main() {
     const net = await posenet.load();
     rosnodejs.log.info('PoseNet model loaded.');
 
-    const imgSub = rosNode.subscribe(paramImgNode, sensor_msgs.Image, (imgData) => {
+    let options = {queueSize: 1, throttleMs: 100};
+    const imgSub = rosNode.subscribe(paramImgNode, sensor_msgs.Image, async (imgData) => {
         let img = undefined;
         
         if(imgData.encoding == "rgb8")
@@ -42,25 +43,38 @@ async function main() {
         //cv.waitKey(1);
 
         if(img != undefined){
+            console.time("posenet")
             let tensor = tf.tensor3d(img.getDataAsArray(), [imgData.height,imgData.width,3], 'int32');
-            net.estimateSinglePose(tensor, paramScaleFactor, paramFlipHorizontal, paramOutputStride)
-            .then((pose) => {
-                if(pose['score'] > 0.2){
-                    for(let k = 0; k < pose['keypoints'].length; k++){
-                        if(pose['keypoints'][k]['score'] > 0.2)
-                            img.drawCircle(new cv.Point(pose['keypoints'][k]['position']['x'], pose['keypoints'][k]['position']['y']),
-                            4, new cv.Vec3(255, 0, 0), 2, 8, 0);
-                    }
-                }
+            // net.estimateSinglePose(tensor, paramScaleFactor, paramFlipHorizontal, paramOutputStride)
+            // .then((pose) => {
+            //     if(pose['score'] > 0.2){
+            //         for(let k = 0; k < pose['keypoints'].length; k++){
+            //             if(pose['keypoints'][k]['score'] > 0.2)
+            //                 img.drawCircle(new cv.Point(pose['keypoints'][k]['position']['x'], pose['keypoints'][k]['position']['y']),
+            //                 4, new cv.Vec3(255, 0, 0), 2, 8, 0);
+            //         }
+            //     }
+            //     cv.imshow('test', img.cvtColor(cv.COLOR_RGB2BGR));
+            //     cv.waitKey(1);
+            // });
 
-                cv.imshow('test', img.cvtColor(cv.COLOR_RGB2BGR));
-                cv.waitKey(1);
-            });
+            pose = await net.estimateSinglePose(tensor, paramScaleFactor, paramFlipHorizontal, paramOutputStride);
+            if(pose['score'] > 0.2){
+                for(let k = 0; k < pose['keypoints'].length; k++){
+                    if(pose['keypoints'][k]['score'] > 0.2)
+                        img.drawCircle(new cv.Point(pose['keypoints'][k]['position']['x'], pose['keypoints'][k]['position']['y']),
+                        4, new cv.Vec3(255, 0, 0), 2, 8, 0);
+                }
+            }
+            console.timeEnd("posenet");
+
+            cv.imshow('test', img.cvtColor(cv.COLOR_RGB2BGR));
+            cv.waitKey(1);  
             
         } else {
             rosnodejs.log.warning('Unknown image format, skipping');
         }
-    });
+    }, options);
 
 }
 
