@@ -9,6 +9,48 @@ const posenet = require('@tensorflow-models/posenet');
 const cv = require('opencv4nodejs');
 const { createImageData, createCanvas } = require('canvas')
 
+function formatImage(imgData){
+    let img = null;
+        
+    if(imgData.encoding == "rgb8")
+        img = imgData.data;
+    else if(imgData.encoding == "bgr8")
+        img = new cv.Mat(Buffer.from(imgData.data), imgData.height, imgData.width, cv.CV_8UC3).cvtColor(cv.COLOR_BGR2RGBA);
+    
+    if (img == null)
+        throw "Unknown image format.";
+    
+    const imgCanvas = createCanvas(640, 480);
+    const imgCtx = imgCanvas.getContext('2d');
+
+    let tempImg = createImageData(
+        new Uint8ClampedArray(img.getData()),
+        imgData.width,
+        imgData.height
+    );
+
+    imgCanvas.height = imgData.height;
+    imgCanvas.width = imgData.width;
+    imgCtx.putImageData(tempImg, 0, 0);
+
+    return imgCanvas;
+}
+
+function debugView(imgData, pose) {
+    img = new cv.Mat(Buffer.from(imgData.data), imgData.height, imgData.width, cv.CV_8UC3).cvtColor(cv.COLOR_BGR2RGBA);
+    
+    if(pose['score'] > 0.2){
+        for(let k = 0; k < pose['keypoints'].length; k++){
+            if(pose['keypoints'][k]['score'] > 0.2)
+                img.drawCircle(new cv.Point(pose['keypoints'][k]['position']['x'], pose['keypoints'][k]['position']['y']),
+                4, new cv.Vec3(255, 0, 0), 2, 8, 0);
+        }
+    }
+
+    cv.imshow('test', img.cvtColor(cv.COLOR_RGB2BGR));
+    cv.waitKey(1);
+}
+
 async function main() {
     let paramName = '/posenet';
     let paramImgNode = '/image_raw';
@@ -31,48 +73,13 @@ async function main() {
     const net = await posenet.load();
     rosnodejs.log.info('PoseNet model loaded.');
 
-    const imgCanvas = createCanvas(640, 480);
-    const imgCtx = imgCanvas.getContext('2d');
-
     let options = {queueSize: 1, throttleMs: 100};
     const imgSub = rosNode.subscribe(paramImgNode, sensor_msgs.Image, async (imgData) => {
-        let img = undefined;
-        
-        if(imgData.encoding == "rgb8")
-            img = imgData.data;
-        else if(imgData.encoding == "bgr8")
-            img = new cv.Mat(Buffer.from(imgData.data), imgData.height, imgData.width, cv.CV_8UC3).cvtColor(cv.COLOR_BGR2RGBA);
-
-        //cv.imshow('test', img);
-        //cv.waitKey(1);
-
-        if(img != undefined){
-            console.time("posenet")
-            let tempImg = createImageData(
-                new Uint8ClampedArray(img.getData()),
-                imgData.width,
-                imgData.height
-            );
-            imgCanvas.height = imgData.height;
-            imgCanvas.width = imgData.width;
-            imgCtx.putImageData(tempImg, 0, 0);
-
-            pose = await net.estimateSinglePose(imgCanvas, paramScaleFactor, paramFlipHorizontal, paramOutputStride);
-            if(pose['score'] > 0.2){
-                for(let k = 0; k < pose['keypoints'].length; k++){
-                    if(pose['keypoints'][k]['score'] > 0.2)
-                        img.drawCircle(new cv.Point(pose['keypoints'][k]['position']['x'], pose['keypoints'][k]['position']['y']),
-                        4, new cv.Vec3(255, 0, 0), 2, 8, 0);
-                }
-            }
-            console.timeEnd("posenet");
-
-            cv.imshow('test', img.cvtColor(cv.COLOR_RGB2BGR));
-            cv.waitKey(1);  
-            
-        } else {
-            rosnodejs.log.warning('Unknown image format, skipping');
-        }
+        const imgCanvas = formatImage(imgData);
+        console.time("posenet")
+        pose = await net.estimateSinglePose(imgCanvas, paramScaleFactor, paramFlipHorizontal, paramOutputStride);
+        console.timeEnd("posenet");
+        debugView(imgData, pose);
     }, options);
 
 }
