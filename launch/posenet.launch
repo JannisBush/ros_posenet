@@ -1,18 +1,58 @@
 <launch>
 
-    <node pkg="image_transport" type="republish" name="republisher" args="compressed in:=/naoqi_driver/camera/front/image_raw raw out:=/camera/raw" required="True" />
     <!-- Launch posenet with all params -->
-    <node pkg="ros_posenet" type="posenet.js" name="posenet" output="screen">
-        <param name="topic" value="/camera/raw" />
-        <param name="multiPerson" value="True" />
-        <param name="gpu" value="false" />
+    <node pkg="ros_posenet" type="test-posenet.js" name="posenet" output="screen">
+        <!-- General configuration -->
+
+        <!-- Name of the input topic with the color images. -->
+        <param name="image_topic" value="/image_raw" />
+
+        <!-- Name of the output topic for the detected poses. -->
         <param name="poses_topic" value="/poses" />
-        <param name="multiplier" value="1.01" />
-        <param name="image_scale_factor" value="0.5" />
-        <param name="flip_horizontal" value="false" />
+
+        <!-- Whether PoseNet should run over the GPU (true) or CPU (false). -->
+        <param name="gpu" value="false" />
+        
+        <!-- PoseNet configuration. Please, refer to the original repository for
+             detailed information on the parameters:
+             https://github.com/tensorflow/tfjs-models/tree/master/posenet -->
+
+        <!-- Can be either `MobileNetV1` or `ResNet50`. -->
+        <param name="architecture" value="MobileNetV1" />
+
+        <!-- Output stride of the model. Can be one of 8, 16, 32. -->
         <param name="output_stride" value="16" />
+
+        <!-- the size the image is resized to before it is fed into the PoseNet.
+             Can be one of 161, 193, 257, 289, 321, 353, 385, 417, 449, 481, 513, and 801. Defaults to 257. -->
+        <param name="input_resolution" value="257" />
+
+        <!-- MobileNetV1 only. Multiplier for the depth for all convolution ops.
+             Can be one of 1.01, 1.0, 0.75, or 0.50. -->
+        <param name="multiplier" value="0.75" />
+
+        <!-- Scale factor for the input images -->
+        <param name="quant_bytes" value="2" />
+
+        <!-- Scale factor for the input images -->
+        <param name="image_scale_factor" value="0.5" />
+
+        <!-- Whether the input image should be flipped or not. -->
+        <param name="flip_horizontal" value="false" />
+
+        <!-- Whether PoseNet should look for multiple poses or not. -->
+        <param name="multi_pose" value="True" />
+
+        <!-- Maximum number of poses being detected by the multi-person model. -->
         <param name="max_pose" value="5" />
-        <param name="score_threshold" value="0.5" />
+        
+        <!-- Minimum confidence to consider a pose valid. -->
+        <param name="min_pose_confidence" value="0.1" />
+
+        <!-- Multi-pose only: minimum confidence for the body parts.  -->
+        <param name="min_part_confidence" value="0.5" />
+
+        <!--  -->
         <param name="nms_radius" value="20" />
     </node>
 </launch>
