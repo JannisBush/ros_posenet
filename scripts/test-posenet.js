@@ -107,6 +107,7 @@ async function main() {
             const param = await rosNode.getParam(key);
             return param;
         }
+        rosnodejs.log.warn('Parameter ' + key + ' not found; using default value: ' + default_value);
         return default_value;
     }
 }
