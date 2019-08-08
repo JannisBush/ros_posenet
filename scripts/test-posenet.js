@@ -2,11 +2,9 @@
 
 const rosnodejs = require('rosnodejs');
 const sensor_msgs = rosnodejs.require('sensor_msgs').msg;
-const StringMsg = rosnodejs.require('std_msgs').msg.String;
+const pose_msgs = rosnodejs.require('ros_posenet').msg;
 
 const tf = require('@tensorflow/tfjs');
-// require('@tensorflow/tfjs-node');
-// const posenet = require('@tensorflow-models/posenet');
 
 const cv = require('opencv4nodejs');
 const { createImageData, createCanvas } = require('canvas')
@@ -40,16 +38,13 @@ function formatImage(imgData){
 
 function debugView (imgData, poses) {
     img = new cv.Mat(Buffer.from(imgData.data), imgData.height, imgData.width, cv.CV_8UC3).cvtColor(cv.COLOR_BGR2RGBA);
-
-    if (!Array.isArray(pose))
-        poses = [poses]
     
     poses.forEach( pose => {
         if(pose['score'] > 0.2){
             for(let k = 0; k < pose['keypoints'].length; k++){
                 if(pose['keypoints'][k]['score'] > 0.2)
                     img.drawCircle(new cv.Point(pose['keypoints'][k]['position']['x'], pose['keypoints'][k]['position']['y']),
-                    4, new cv.Vec3(255, 0, 0), 2, 8, 0);
+                    4, new cv.Vec3(129, 245, 60), 2, 8, 0);
             }
         }
     });
@@ -97,6 +92,8 @@ async function main() {
 
     rosnodejs.log.info('PoseNet model loaded.');
 
+    let posePub = rosNode.advertise(paramPosesTopic, pose_msgs.Poses);
+
     let options = {queueSize: 1, throttleMs: 100};
     let imgSub = null;
     if (paramMultiPose)
@@ -123,7 +120,8 @@ async function main() {
         pose = await net.estimateSinglePose(imgCanvas, 
             {flipHorizontal: paramFlipHorizontal});
         console.timeEnd("posenet");
-        debugView(imgData, pose);
+        posePub.publish(buildOutputMessage([pose]));
+        debugView(imgData, [pose]);
     }
 
     // Callback for the pose estimation.
@@ -137,7 +135,26 @@ async function main() {
             nmsRadius: paramNmsRadius
         });
         console.timeEnd("posenet");
+        posePub.publish(buildOutputMessage(poses));
         debugView(imgData, poses);
+    }
+
+    function buildOutputMessage(poses) {
+        let msg = new pose_msgs.Poses();
+        poses.forEach(poseData => {
+            pose = new pose_msgs.Pose();
+            pose.score = poseData['score'];
+            poseData['keypoints'].forEach(keypointData => {
+                keypoint = new pose_msgs.Keypoint();
+                keypoint.score = keypointData['score'];
+                keypoint.part = keypointData['part'];
+                keypoint.position.x = keypointData['position']['x'];
+                keypoint.position.y = keypointData['position']['y'];
+                pose.keypoints.push(keypoint);
+            });
+            msg.poses.push(pose);
+        });
+        return msg;
     }
 }
 
