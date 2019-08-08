@@ -38,16 +38,21 @@ function formatImage(imgData){
     return imgCanvas;
 }
 
-function debugView (imgData, pose) {
+function debugView (imgData, poses) {
     img = new cv.Mat(Buffer.from(imgData.data), imgData.height, imgData.width, cv.CV_8UC3).cvtColor(cv.COLOR_BGR2RGBA);
+
+    if (!Array.isArray(pose))
+        poses = [poses]
     
-    if(pose['score'] > 0.2){
-        for(let k = 0; k < pose['keypoints'].length; k++){
-            if(pose['keypoints'][k]['score'] > 0.2)
-                img.drawCircle(new cv.Point(pose['keypoints'][k]['position']['x'], pose['keypoints'][k]['position']['y']),
-                4, new cv.Vec3(255, 0, 0), 2, 8, 0);
+    poses.forEach( pose => {
+        if(pose['score'] > 0.2){
+            for(let k = 0; k < pose['keypoints'].length; k++){
+                if(pose['keypoints'][k]['score'] > 0.2)
+                    img.drawCircle(new cv.Point(pose['keypoints'][k]['position']['x'], pose['keypoints'][k]['position']['y']),
+                    4, new cv.Vec3(255, 0, 0), 2, 8, 0);
+            }
         }
-    }
+    });
 
     cv.imshow('test', img.cvtColor(cv.COLOR_RGB2BGR));
     cv.waitKey(1);
@@ -67,10 +72,10 @@ async function main() {
     const paramInputResolution = await getParam('/posenet/input_resolution', 257);
     const paramQuantBytes = await getParam('/posenet/quant_bytes', 4)
     const paramOutputStride = await getParam('/posenet/output_stride', 16);
-    const paramScaleFactor = await getParam('/posenet/flip_horizontal', 1.0);
-    const paramFlipHorizontal = await getParam('/posenet/multiplier', false);
+    const paramScaleFactor = await getParam('/posenet/image_scale_factor', 1.0);
+    const paramFlipHorizontal = await getParam('/posenet/flip_horizontal', false);
     const paramMultiPose = await getParam('/posenet/multi_pose', false);
-    const paramMaxPose = await getParam('/posenet/max_pose', 5);
+    const paramMaxDetection = await getParam('/posenet/max_detection', 5);
     const paramMinPoseConf = await getParam('/posenet/min_pose_confidence', 0.1);
     const paramMinPartConf = await getParam('/posenet/min_part_confidence', 0.5);
     const paramNmsRadius = await getParam('/posenet/nms_radius', 30);
@@ -88,12 +93,18 @@ async function main() {
         inputResolution: paramInputResolution,
         multiplier: paramMultiplier,
         quantBytes: paramQuantBytes,
-      });
+    });
 
     rosnodejs.log.info('PoseNet model loaded.');
 
     let options = {queueSize: 1, throttleMs: 100};
-    const imgSub = rosNode.subscribe(paramImgTopic, sensor_msgs.Image, estimatePoseCallback, options);
+    let imgSub = null;
+    if (paramMultiPose)
+        imgSub = rosNode.subscribe(paramImgTopic, sensor_msgs.Image, 
+            multiPoseCallback, options);
+    else
+        imgSub = rosNode.subscribe(paramImgTopic, sensor_msgs.Image, 
+            singlePoseCallback, options);
 
     // ROS function for simple recieveing node param
     async function getParam (key, default_value){
@@ -106,12 +117,27 @@ async function main() {
     }
 
     // Callback for the pose estimation.
-    async function estimatePoseCallback(imgData){
+    async function singlePoseCallback(imgData){
         const imgCanvas = formatImage(imgData);
         console.time("posenet")
-        pose = await net.estimateSinglePose(imgCanvas, paramScaleFactor, paramFlipHorizontal, paramOutputStride);
+        pose = await net.estimateSinglePose(imgCanvas, 
+            {flipHorizontal: paramFlipHorizontal});
         console.timeEnd("posenet");
         debugView(imgData, pose);
+    }
+
+    // Callback for the pose estimation.
+    async function multiPoseCallback(imgData){
+        const imgCanvas = formatImage(imgData);
+        console.time("posenet")
+        poses = await net.estimateMultiplePoses(imgCanvas, {
+            flipHorizontal: paramFlipHorizontal,
+            maxDetections: paramMaxDetection,
+            scoreThreshold: paramMinPartConf,
+            nmsRadius: paramNmsRadius
+        });
+        console.timeEnd("posenet");
+        debugView(imgData, poses);
     }
 }
 

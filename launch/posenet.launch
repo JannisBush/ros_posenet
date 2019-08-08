@@ -23,8 +23,9 @@
         <!-- Output stride of the model. Can be one of 8, 16, 32. -->
         <param name="output_stride" value="16" />
 
-        <!-- the size the image is resized to before it is fed into the PoseNet.
-             Can be one of 161, 193, 257, 289, 321, 353, 385, 417, 449, 481, 513, and 801. Defaults to 257. -->
+        <!-- The size the image is resized to before it is fed into the PoseNet.
+             Can be one of 161, 193, 257, 289, 321, 353, 385, 417, 449, 481,
+             513, and 801. Defaults to 257. -->
         <param name="input_resolution" value="257" />
 
         <!-- MobileNetV1 only. Multiplier for the depth for all convolution ops.
@@ -41,10 +42,11 @@
         <param name="flip_horizontal" value="false" />
 
         <!-- Whether PoseNet should look for multiple poses or not. -->
-        <param name="multi_pose" value="True" />
+        <param name="multi_pose" value="false" />
 
-        <!-- Maximum number of poses being detected by the multi-person model. -->
-        <param name="max_pose" value="5" />
+        <!-- Maximum number of poses being detected by the multi-person 
+             algorithm. -->
+        <param name="max_detection" value="5" />
         
         <!-- Minimum confidence to consider a pose valid. -->
         <param name="min_pose_confidence" value="0.1" />
@@ -52,7 +54,7 @@
         <!-- Multi-pose only: minimum confidence for the body parts.  -->
         <param name="min_part_confidence" value="0.5" />
 
-        <!--  -->
-        <param name="nms_radius" value="20" />
+        <!-- Radius of the Non-Maximum Suppression. -->
+        <param name="nms_radius" value="30" />
     </node>
 </launch>
