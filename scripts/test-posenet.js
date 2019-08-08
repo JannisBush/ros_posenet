@@ -10,17 +10,18 @@ const cv = require('opencv4nodejs');
 const { createImageData, createCanvas } = require('canvas')
 
 function formatImage(imgData){
-    let img = null;
-        
+    let conversionCode = null;
     if(imgData.encoding == "rgb8")
-        img = imgData.data;
+        conversionCode = cv.COLOR_RGB2RGBA;
     else if(imgData.encoding == "bgr8")
-        img = new cv.Mat(Buffer.from(imgData.data), imgData.height, imgData.width, cv.CV_8UC3).cvtColor(cv.COLOR_BGR2RGBA);
-    
-    if (img == null)
+        conversionCode = cv.COLOR_BGR2RGBA;
+    else
         throw "Unknown image format.";
-    
-    const imgCanvas = createCanvas(640, 480);
+
+    let img = new cv.Mat(Buffer.from(imgData.data), imgData.height, 
+                imgData.width, cv.CV_8UC3).cvtColor(conversionCode);
+        
+    const imgCanvas = createCanvas(imgData.height, imgData.width);
     const imgCtx = imgCanvas.getContext('2d');
 
     let tempImg = createImageData(
@@ -29,23 +30,24 @@ function formatImage(imgData){
         imgData.height
     );
 
-    imgCanvas.height = imgData.height;
-    imgCanvas.width = imgData.width;
     imgCtx.putImageData(tempImg, 0, 0);
 
     return imgCanvas;
 }
 
 function debugView (imgData, poses) {
-    img = new cv.Mat(Buffer.from(imgData.data), imgData.height, imgData.width, cv.CV_8UC3).cvtColor(cv.COLOR_BGR2RGBA);
+    img = new cv.Mat(Buffer.from(imgData.data), imgData.height, 
+            imgData.width, cv.CV_8UC3).cvtColor(cv.COLOR_BGR2RGBA);
     
     poses.forEach( pose => {
         if(pose['score'] > 0.2){
-            for(let k = 0; k < pose['keypoints'].length; k++){
-                if(pose['keypoints'][k]['score'] > 0.2)
-                    img.drawCircle(new cv.Point(pose['keypoints'][k]['position']['x'], pose['keypoints'][k]['position']['y']),
+            pose['keypoints'].forEach(keypoint => {
+                if(keypoint['score'] > 0.2)
+                    img.drawCircle(new cv.Point(
+                        keypoint['position']['x'], 
+                        keypoint['position']['y']),
                     4, new cv.Vec3(129, 245, 60), 2, 8, 0);
-            }
+            });
         }
     });
 

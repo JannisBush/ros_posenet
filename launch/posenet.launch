@@ -17,7 +17,7 @@
              detailed information on the parameters:
              https://github.com/tensorflow/tfjs-models/tree/master/posenet -->
 
-        <!-- Can be either `MobileNetV1` or `ResNet50`. -->
+        <!-- Can be either "MobileNetV1" or "ResNet50". -->
         <param name="architecture" value="MobileNetV1" />
 
         <!-- Output stride of the model. Can be one of 8, 16, 32. -->
@@ -42,7 +42,7 @@
         <param name="flip_horizontal" value="false" />
 
         <!-- Whether PoseNet should look for multiple poses or not. -->
-        <param name="multi_pose" value="false" />
+        <param name="multi_pose" value="true" />
 
         <!-- Maximum number of poses being detected by the multi-person 
              algorithm. -->
