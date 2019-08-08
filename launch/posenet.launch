@@ -35,9 +35,6 @@
         <!-- Scale factor for the input images -->
         <param name="quant_bytes" value="2" />
 
-        <!-- Scale factor for the input images -->
-        <param name="image_scale_factor" value="0.5" />
-
         <!-- Whether the input image should be flipped or not. -->
         <param name="flip_horizontal" value="false" />
 

@@ -101,7 +101,6 @@ async function main() {
     const paramInputResolution = await getParam('/posenet/input_resolution', 257);
     const paramQuantBytes = await getParam('/posenet/quant_bytes', 4)
     const paramOutputStride = await getParam('/posenet/output_stride', 16);
-    const paramScaleFactor = await getParam('/posenet/image_scale_factor', 1.0);
     const paramFlipHorizontal = await getParam('/posenet/flip_horizontal', false);
     const paramMultiPose = await getParam('/posenet/multi_pose', false);
     const paramMaxDetection = await getParam('/posenet/max_detection', 5);
