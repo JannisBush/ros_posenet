@@ -24,6 +24,7 @@ const tf = require('@tensorflow/tfjs');
 const cv = require('opencv4nodejs');
 const { createImageData, createCanvas } = require('canvas')
 
+
 /**
  * Transforms a ROS image message into a Canvas object, so that it can be
  * inputted into the PoseNet neural network.
@@ -56,8 +57,11 @@ function formatImage(imgData){
     return imgCanvas;
 }
 
+
 /**
- * Draws the detected keypoints over the input image. Used for debugging only.
+ * Draws the detected keypoints over the input image and shows to the user.
+ * 
+ * Used for debugging only.
  * @param {sensor_msgs.Image} imgData A ROS image message.
  * @param {Pose} poses The poses detected by PoseNet.
  */
@@ -80,6 +84,8 @@ function debugView (imgData, poses) {
     cv.imshow('test', img.cvtColor(cv.COLOR_RGB2BGR));
     cv.waitKey(1);
 }
+
+
 /**
  * Provides the `/posenet` node and output topic.
  * 
@@ -222,6 +228,7 @@ async function main() {
         return msg;
     }
 }
+
 
 // Executes the main function.
 if (require.main === module)
