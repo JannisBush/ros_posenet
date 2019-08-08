@@ -93,13 +93,7 @@ async function main() {
     rosnodejs.log.info('PoseNet model loaded.');
 
     let options = {queueSize: 1, throttleMs: 100};
-    const imgSub = rosNode.subscribe(paramImgTopic, sensor_msgs.Image, async (imgData) => {
-        const imgCanvas = formatImage(imgData);
-        console.time("posenet")
-        pose = await net.estimateSinglePose(imgCanvas, paramScaleFactor, paramFlipHorizontal, paramOutputStride);
-        console.timeEnd("posenet");
-        debugView(imgData, pose);
-    }, options);
+    const imgSub = rosNode.subscribe(paramImgTopic, sensor_msgs.Image, estimatePoseCallback, options);
 
     // ROS function for simple recieveing node param
     async function getParam (key, default_value){
@@ -109,6 +103,15 @@ async function main() {
         }
         rosnodejs.log.warn('Parameter ' + key + ' not found; using default value: ' + default_value);
         return default_value;
+    }
+
+    // Callback for the pose estimation.
+    async function estimatePoseCallback(imgData){
+        const imgCanvas = formatImage(imgData);
+        console.time("posenet")
+        pose = await net.estimateSinglePose(imgCanvas, paramScaleFactor, paramFlipHorizontal, paramOutputStride);
+        console.timeEnd("posenet");
+        debugView(imgData, pose);
     }
 }
 
