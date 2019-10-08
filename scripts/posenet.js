@@ -1,143 +1,235 @@
 #!/usr/bin/env node
 
-'use strict'
+/**
+ * ROS PoseNet
+ * 
+ * This is the main script of the `posenet` package. It reads a ROS color camera 
+ * stream (such as `/image_raw`) and then uses PoseNet to detect the skeleton
+ * (pose) of a single or multiple users in the image.
+ * 
+ * The current script supports the two PoseNet models, MobileNetV1 and ResNet50,
+ * as well as the single and multi-pose algorithms.
+ */
 
-global.XMLHttpRequest = require("xhr2");
-const assert = require("assert");
-// Main requirements
-const tf = require('@tensorflow/tfjs');
+// Packages required by ROS.
 const rosnodejs = require('rosnodejs');
-const stringify = require('json-stringify');
-// Requires the std_msgs message and sensor_msgs packages
 const sensor_msgs = rosnodejs.require('sensor_msgs').msg;
-const StringMsg = rosnodejs.require('std_msgs').msg.String;
 const pose_msgs = rosnodejs.require('ros_posenet').msg;
-const PosesMsg = rosnodejs.require('ros_posenet').msg.Poses;
 
-// MobileNet Image Classification
-// const mobilenet = require('@tensorflow-models/mobilenet');
-// const loadModel = async path => {
-//   const mn = new mobilenet.MobileNet(1, 1);
-//   mn.path = `file://${path}`
-//   await mn.load()
-//   return mn
-// }
+// Packages required by PoseNet. The PoseNet package itself is loaded in the
+// main function, as it requires the CPU or the GPU tensorflow library to be
+// loaded first, and that depends on the configuration read from the launch
+// file.
+const tf = require('@tensorflow/tfjs');
+const cv = require('opencv4nodejs');
+const { createImageData, createCanvas } = require('canvas')
 
-async function run() {
-    const rosNode = await rosnodejs.initNode('/posenet');
-    // ROS function for simple recieveing node param
-    const getParam = async function(key, default_value){
-        if(await rosNode.hasParam(key)){
-            const param = await rosNode.getParam(key);
-            return param;
+
+/**
+ * Transforms a ROS image message into a Canvas object, so that it can be
+ * inputted into the PoseNet neural network.
+ * @param {sensor_msgs.Image} imgData A ROS image message.
+ * @returns {Canvas} A Canvas object with the same content as the ROS image.
+ */
+function formatImage(imgData){
+    // Converts the original color mode to RGBA. 
+    let conversionCode = null;
+
+    if(imgData.encoding == "rgb8")
+        conversionCode = cv.COLOR_RGB2RGBA;
+    else if(imgData.encoding == "bgr8")
+        conversionCode = cv.COLOR_BGR2RGBA;
+    else
+        throw "Unknown image format.";
+
+    let img = new cv.Mat(Buffer.from(imgData.data), imgData.height, 
+                imgData.width, cv.CV_8UC3).cvtColor(conversionCode);
+    
+    // Creates the Canvas object, draw and return it.
+    const imgCanvas = createCanvas(imgData.height, imgData.width);
+    const imgCtx = imgCanvas.getContext('2d');
+    let tempImg = createImageData(
+        new Uint8ClampedArray(img.getData()),
+        imgData.width,
+        imgData.height
+    );
+    imgCtx.putImageData(tempImg, 0, 0);
+    return imgCanvas;
+}
+
+
+/**
+ * Draws the detected keypoints over the input image and shows to the user.
+ * 
+ * Used for debugging only.
+ * @param {sensor_msgs.Image} imgData A ROS image message.
+ * @param {Pose} poses The poses detected by PoseNet.
+ */
+function debugView (imgData, poses) {
+    img = new cv.Mat(Buffer.from(imgData.data), imgData.height, 
+            imgData.width, cv.CV_8UC3).cvtColor(cv.COLOR_BGR2RGBA);
+    
+    poses.forEach( pose => {
+        if(pose['score'] > 0.2){
+            pose['keypoints'].forEach(keypoint => {
+                if(keypoint['score'] > 0.2)
+                    img.drawCircle(new cv.Point(
+                        keypoint['position']['x'], 
+                        keypoint['position']['y']),
+                    4, new cv.Vec3(129, 245, 60), 2, 8, 0);
+            });
         }
-        return default_value;
-    }
-    // Find if GPU is enabled and start tf
-    const gpu = await getParam('~gpu', false);
-    console.log(gpu);
-    if (gpu)
+    });
+
+    cv.imshow('test', img.cvtColor(cv.COLOR_RGB2BGR));
+    cv.waitKey(1);
+}
+
+
+/**
+ * Provides the `/posenet` node and output topic.
+ * 
+ * This function provides the `/posenet` node. It subscribes to an image topic
+ * (e.g. `/image_raw`) and feed it to PoseNet to obtain the estimated poses.
+ * The estimated poses are then published to an output topic (e.g. `/poses`).
+ */
+async function main() {
+    // Register node with ros; `rosNode` is used to load the parameters.
+    const rosNode = await rosnodejs.initNode("/posenet")
+    rosnodejs.log.info('Node /posenet registered.');
+    
+    // Load all parameters from `posenet.launch`.
+    const paramImgTopic = await getParam('/posenet/image_topic', '/image_raw');
+    const paramPosesTopic = await getParam('/posenet/poses_topic', '/poses');
+    const paramGPU = await getParam('/posenet/gpu', false);
+    const paramArchitecture = await getParam('/posenet/architecture', 'MobileNetV1');
+    const paramMultiplier = await getParam('/posenet/multiplier', 0.5);
+    const paramInputResolution = await getParam('/posenet/input_resolution', 257);
+    const paramQuantBytes = await getParam('/posenet/quant_bytes', 4)
+    const paramOutputStride = await getParam('/posenet/output_stride', 16);
+    const paramFlipHorizontal = await getParam('/posenet/flip_horizontal', false);
+    const paramMultiPose = await getParam('/posenet/multi_pose', false);
+    const paramMaxDetection = await getParam('/posenet/max_detection', 5);
+    const paramMinPoseConf = await getParam('/posenet/min_pose_confidence', 0.1);
+    const paramMinPartConf = await getParam('/posenet/min_part_confidence', 0.5);
+    const paramNmsRadius = await getParam('/posenet/nms_radius', 30);
+
+    // Load PoseNet dependencies and model.
+    if (paramGPU)
         require('@tensorflow/tfjs-node-gpu');
     else
         require('@tensorflow/tfjs-node');
     const posenet = require('@tensorflow-models/posenet');
-    // lowest quality first
-    const multiplier = await getParam('~multiplier', 0.5);
+        
+    const net = await posenet.load({
+        architecture: paramArchitecture,
+        outputStride: paramOutputStride,
+        inputResolution: paramInputResolution,
+        multiplier: paramMultiplier,
+        quantBytes: paramQuantBytes,
+    });
+
+    rosnodejs.log.info('PoseNet model loaded.');
+
+    // Creates the publishing topic and subscribe to the image topic.
+    let posePub = rosNode.advertise(paramPosesTopic, pose_msgs.Poses);
+    let options = {queueSize: 1, throttleMs: 100};
+    let imgSub;
+    if (paramMultiPose)
+        imgSub = rosNode.subscribe(paramImgTopic, sensor_msgs.Image, 
+            multiPoseCallback, options);
+    else
+        imgSub = rosNode.subscribe(paramImgTopic, sensor_msgs.Image, 
+            singlePoseCallback, options);
     
-    // MobileNet image classification
-    // const model = await loadModel("/home/jar78/Downloads/MobileNet/model.json");
+    // Main function ends here. Bellow you can find the utility functions and
+    // callbacks.
 
-    // This step requires internet connection as weights are loaded from google servers...
-    // TODO download them offline
-    const net  = await posenet.load(multiplier);
-    // Local variables for sync with ROS
-    let buffer = [];
-    let newBuffer = false;
-    let image_width = 0;
-    let image_height = 0;
-    let header = null;
-    // Parameters for posenet
-    const imageScaleFactor = await getParam('~image_scale_factor', 0.5);
-    const flipHorizontal = await getParam('~flip_horizontal', false);
-    const outputStride = await getParam('~output_stride', 16);
-    const maxPoseDetections = await getParam('~max_pose', 5);
-    const scoreThreshold = await getParam('~score_threshold', 0.5);
-    const nmsRadius = await getParam('~nms_radius', 20);
-    const multiPerson = await getParam('~multiPerson', false);
-    // topic names
-    const camera_topic = await getParam('~topic','/camera/image_raw');
-    const output_topic = await getParam('~poses_topic','/poses');
-    // ROS topics
-    let pub = rosNode.advertise(output_topic, PosesMsg);
-    //
-    let sub = rosNode.subscribe(camera_topic, sensor_msgs.Image,
-        (data) => {
-            // TODO more encodings
-            if (data.encoding == 'bgr8'){
-                // Change the encoding to rgb8 
-                // Atm not implemented, this means red is blue and vice versa which leads to worse results
-                // data.data = swapChannels(data.data);
-                data.encoding = 'rgb8';
-            }
-            // Currently works only with rgb8 data
-            assert(data.encoding == 'rgb8');
-            buffer = data.data;
-            newBuffer = true;
-            header = data.header;
-            image_height = data.height;
-            image_width = data.width;
+    /**
+     * ROS function reading parameters from the parameters server.
+     * @param {String} key The parameter's name as per the launch file.
+     * @param {*} default_value The default value that should be loaded in case
+     *                          it is not provided.
+     * @returns The value for the given parameter.
+     */
+    async function getParam (key, default_value){
+        if(await rosNode.hasParam(key)){
+            const param = await rosNode.getParam(key);
+            return param;
         }
-    );
-    // Loop for detecting poses
-    const DetectingPoses = async function (){
-    if (newBuffer == false)  return;
-        let tensor = tf.tensor3d(buffer, [image_height,image_width,3], 'int32');
-        newBuffer = false;
-        let pose_msg = new pose_msgs.Poses()
-        if (multiPerson === true) {
-             const poses = await net.estimateMultiplePoses(tensor, imageScaleFactor, flipHorizontal, outputStride,
-                                                           maxPoseDetections, scoreThreshold,nmsRadius);
-            for (let i = 0; i < poses.length; i++){
-                pose_msg.poses.push(new pose_msgs.Pose());
-                pose_msg.poses[i]["score"] = poses[i]["score"];
-                for (let k = 0; k < poses[i]["keypoints"].length; k++){
-                    pose_msg.poses[i].keypoints.push(new pose_msgs.Keypoint());
-                    pose_msg.poses[i].keypoints[k].score = poses[i]["keypoints"][k]["score"];
-                    pose_msg.poses[i].keypoints[k].part = poses[i]["keypoints"][k]["part"];
-                    pose_msg.poses[i].keypoints[k].position.x = poses[i]["keypoints"][k]["position"]["x"];
-                    pose_msg.poses[i].keypoints[k].position.y = poses[i]["keypoints"][k]["position"]["y"];
-
-                }
-            }           
-        }
-        else{
-            const poses = await net.estimateSinglePose(tensor, imageScaleFactor, flipHorizontal, outputStride);
-            pose_msg.poses.push(new pose_msgs.Pose());
-            let i = 0;
-            pose_msg.poses[i]["score"] = poses["score"];
-            for (let k = 0; k < poses["keypoints"].length; k++){
-                pose_msg.poses[i].keypoints.push(new pose_msgs.Keypoint());
-                pose_msg.poses[i].keypoints[k].score = poses["keypoints"][k]["score"];
-                pose_msg.poses[i].keypoints[k].part = poses["keypoints"][k]["part"];
-                pose_msg.poses[i].keypoints[k].position.x = poses["keypoints"][k]["position"]["x"];
-                pose_msg.poses[i].keypoints[k].position.y = poses["keypoints"][k]["position"]["y"];
-            }
-        }
-
-        // MobileNet Image Classification
-        // const predictions = await model.classify(tensor);
-        // console.log('Predictions: ');
-        // console.log(predictions);
-
-        tensor.dispose();
-
-        pub.publish(pose_msg);
+        rosnodejs.log.warn('Parameter ' + key +
+            ' not found; using default value: ' + default_value);
+        return default_value;
     }
-    setInterval(DetectingPoses, 10);
+    
+
+    /**
+     * Callback for the pose detection when a single pose is considered.
+     * 
+     * This callback process the input ROS image using PoseNet to detect a
+     * single pose. The result is published into the output topic.
+     * @param {sensors_msgs.Image} imgData A ROS image message.
+     */
+    async function singlePoseCallback(imgData){
+        const imgCanvas = formatImage(imgData);
+        console.time("posenet")
+        pose = await net.estimateSinglePose(imgCanvas, 
+            {flipHorizontal: paramFlipHorizontal});
+        console.timeEnd("posenet");
+        posePub.publish(buildOutputMessage([pose]));
+        debugView(imgData, [pose]);
+    }
+
+
+    /**
+     * Callback for the pose detection when multiple poses are considered.
+     * 
+     * This callback process the input ROS image using PoseNet to detect
+     * multiple poses. The result is published into the output topic.
+     * @param {sensors_msgs.Image} imgData A ROS image message.
+     */
+    async function multiPoseCallback(imgData){
+        const imgCanvas = formatImage(imgData);
+        console.time("posenet")
+        poses = await net.estimateMultiplePoses(imgCanvas, {
+            flipHorizontal: paramFlipHorizontal,
+            maxDetections: paramMaxDetection,
+            scoreThreshold: paramMinPartConf,
+            nmsRadius: paramNmsRadius
+        });
+        console.timeEnd("posenet");
+        posePub.publish(buildOutputMessage(poses));
+        debugView(imgData, poses);
+    }
+
+
+    /**
+     * Converts a Pose object into a ROS message.
+     * @param {[Poses]} poses The poses outputted by PoseNet.
+     * @returns {pose_msgs.Poses} The ROS message that will be published.
+     */
+    function buildOutputMessage(poses) {
+        let msg = new pose_msgs.Poses();
+        poses.forEach(poseData => {
+            if (poseData['score'] > paramMinPoseConf) {
+                pose = new pose_msgs.Pose();
+                pose.score = poseData['score'];
+                poseData['keypoints'].forEach(keypointData => {
+                    keypoint = new pose_msgs.Keypoint();
+                    keypoint.score = keypointData['score'];
+                    keypoint.part = keypointData['part'];
+                    keypoint.position.x = keypointData['position']['x'];
+                    keypoint.position.y = keypointData['position']['y'];
+                    pose.keypoints.push(keypoint);
+                });
+                msg.poses.push(pose);
+            }
+        });
+        return msg;
+    }
 }
 
 
-
-
-
-run();
+// Executes the main function.
+if (require.main === module)
+    main();

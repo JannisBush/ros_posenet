@@ -1,11 +1,11 @@
 <launch>
 
     <!-- Launch posenet with all params -->
-    <node pkg="ros_posenet" type="test-posenet.js" name="posenet" output="screen">
+    <node pkg="ros_posenet" type="posenet.js" name="posenet" output="screen">
         <!-- General configuration -->
 
         <!-- Name of the input topic with the color images. -->
-        <param name="image_topic" value="/image_raw" />
+        <param name="image_topic" value="/camera" />
 
         <!-- Name of the output topic for the detected poses. -->
         <param name="poses_topic" value="/poses" />
