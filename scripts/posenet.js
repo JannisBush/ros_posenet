@@ -24,6 +24,9 @@ const tf = require('@tensorflow/tfjs');
 const cv = require('opencv4nodejs');
 const { createImageData, createCanvas } = require('canvas')
 
+// If DEBUG is true, the prediction time will be printed, and an image with the
+// detected poses will be shown.
+const DEBUG = false;
 
 /**
  * Transforms a ROS image message into a Canvas object, so that it can be
@@ -172,12 +175,17 @@ async function main() {
      */
     async function singlePoseCallback(imgData){
         const imgCanvas = formatImage(imgData);
-        console.time("posenet")
+        if(DEBUG)
+            console.time("posenet")
         pose = await net.estimateSinglePose(imgCanvas, 
             {flipHorizontal: paramFlipHorizontal});
-        console.timeEnd("posenet");
+        if(DEBUG){
+            console.timeEnd("posenet");
+            debugView(imgData, [pose]);
+        }
+        
         posePub.publish(buildOutputMessage([pose]));
-        debugView(imgData, [pose]);
+        
     }
 
 
@@ -190,16 +198,19 @@ async function main() {
      */
     async function multiPoseCallback(imgData){
         const imgCanvas = formatImage(imgData);
-        console.time("posenet")
+        if(DEBUG)
+            console.time("posenet")
         poses = await net.estimateMultiplePoses(imgCanvas, {
             flipHorizontal: paramFlipHorizontal,
             maxDetections: paramMaxDetection,
             scoreThreshold: paramMinPartConf,
             nmsRadius: paramNmsRadius
         });
-        console.timeEnd("posenet");
+        if(DEBUG){
+            console.timeEnd("posenet");
+            debugView(imgData, poses);
+        }
         posePub.publish(buildOutputMessage(poses));
-        debugView(imgData, poses);
     }
 
 
