@@ -69,8 +69,15 @@ function formatImage(imgData){
  * @param {Pose} poses The poses detected by PoseNet.
  */
 function debugView (imgData, poses) {
+    if(imgData.encoding == "rgb8")
+        conversionCode = cv.COLOR_RGB2RGBA;
+    else if(imgData.encoding == "bgr8")
+        conversionCode = cv.COLOR_BGR2RGBA;
+    else
+        throw "Unknown image format.";
+        
     img = new cv.Mat(Buffer.from(imgData.data), imgData.height, 
-            imgData.width, cv.CV_8UC3).cvtColor(cv.COLOR_BGR2RGBA);
+            imgData.width, cv.CV_8UC3).cvtColor(conversionCode);
     
     poses.forEach( pose => {
         if(pose['score'] > 0.2){
