@@ -114,7 +114,7 @@ async function main() {
     const paramGPU = await getParam('/posenet/gpu', false);
     const paramArchitecture = await getParam('/posenet/architecture', 'MobileNetV1');
     const paramMultiplier = await getParam('/posenet/multiplier', 0.5);
-    const paramInputResolution = await getParam('/posenet/input_resolution', 257);
+    let paramInputResolution = await getParam('/posenet/input_resolution', 257);
     const paramQuantBytes = await getParam('/posenet/quant_bytes', 4)
     const paramOutputStride = await getParam('/posenet/output_stride', 16);
     const paramFlipHorizontal = await getParam('/posenet/flip_horizontal', false);
@@ -123,6 +123,9 @@ async function main() {
     const paramMinPoseConf = await getParam('/posenet/min_pose_confidence', 0.1);
     const paramMinPartConf = await getParam('/posenet/min_part_confidence', 0.5);
     const paramNmsRadius = await getParam('/posenet/nms_radius', 30);
+
+    if (!Number.isInteger(paramInputResolution))
+        paramInputResolution = JSON.parse(paramInputResolution);
 
     // Load PoseNet dependencies and model.
     if (paramGPU)
